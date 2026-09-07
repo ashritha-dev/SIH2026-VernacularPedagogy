@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-Powered Vernacular Pedagogy</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">AI-Powered Vernacular Pedagogy</div>
+  <div class="tag">Offline-first classroom language bridge</div>
+</header>
+
+<main>
+  <section class="hero">
+    <div>
+      <span class="pill">SIH 2026 • Prototype</span>
+      <h1>Teach FLN in the language children understand.</h1>
+      <p>Help Hindi-medium teachers deliver classroom instructions, translated content and learning activities in tribal languages.</p>
+    </div>
+    <div class="status">● Prototype ready</div>
+  </section>
+
+  <section class="grid">
+    <div class="card">
+      <h2>🌐 Target language</h2>
+      <div class="langs">
+        {% for lang in languages %}
+        <button class="lang {% if loop.first %}active{% endif %}" onclick="selectLanguage('{{lang}}',this)">{{lang}}</button>
+        {% endfor %}
+      </div>
+      <p id="selected">Selected: Ho</p>
+    </div>
+
+    <div class="card">
+      <h2>🔤 Hindi → Tribal language</h2>
+      <textarea id="hindi" placeholder="उदाहरण: बच्चे किताब पढ़ो"></textarea>
+      <div class="row">
+        <button class="primary" onclick="translateNow()">Translate</button>
+        <button class="secondary" onclick="clearAll()">Clear</button>
+      </div>
+      <div class="output">
+        <small>TRANSLATED OUTPUT</small>
+        <div id="translation">Your translation will appear here.</div>
+      </div>
+      <button class="audio" onclick="speak()">🔊 Play translated audio</button>
+    </div>
+
+    <div class="card">
+      <h2>🎙️ Real-time voice demo</h2>
+      <p>Speak a Hindi classroom instruction. The browser recognizes the speech and sends it to the translation engine.</p>
+      <button class="voice" onclick="startVoice()">🎙 Start speaking</button>
+      <div id="voiceStatus" class="hint">Ready • Hindi speech input</div>
+    </div>
+
+    <div class="card">
+      <h2>📝 Bilingual worksheet</h2>
+      <div class="two">
+        <select id="grade"><option>Class 1</option><option>Class 2</option><option>Class 3</option></select>
+        <select id="topic"><option>Numbers</option><option>Animals</option><option>Colours</option><option>My Family</option></select>
+      </div>
+      <button class="primary" onclick="makeWorksheet()">Generate worksheet</button>
+      <div class="worksheet" id="worksheet">Choose a topic and generate an activity.</div>
+      <button class="secondary" onclick="downloadWorksheet()">⬇ Download demo worksheet</button>
+    </div>
+
+    <div class="card full">
+      <h2>✨ Classroom toolkit</h2>
+      <div class="features">
+        <div><b>📚 Lesson support</b><span>FLN-aligned classroom prompts</span></div>
+        <div><b>📝 Worksheets</b><span>Bilingual practice activities</span></div>
+        <div><b>🖼️ Flashcards</b><span>Visual learning aids</span></div>
+        <div><b>📴 Offline-ready</b><span>Local content/model architecture</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="note"><b>Prototype note:</b> Current demo uses a small validated-example dictionary to demonstrate the workflow. Production deployment requires larger, linguistically validated datasets/models and native-speaker evaluation.</div>
+</main>
+
+<script>
+let selectedLanguage = "Ho";
+
+function selectLanguage(lang, el) {
+  selectedLanguage = lang;
+  document.querySelectorAll(".lang").forEach(x => x.classList.remove("active"));
+  el.classList.add("active");
+  document.getElementById("selected").textContent = "Selected: " + lang;
+}
+
+async function translateNow() {
+  const text = document.getElementById("hindi").value.trim();
+  if (!text) return alert("Enter Hindi text first.");
+  const r = await fetch("/api/translate", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({text, language:selectedLanguage})
+  });
+  const d = await r.json();
+  document.getElementById("translation").textContent = d.translation || d.error;
+}
+
+function clearAll() {
+  document.getElementById("hindi").value = "";
+  document.getElementById("translation").textContent = "Your translation will appear here.";
+}
+
+function speak() {
+  const text = document.getElementById("translation").textContent;
+  if (!text || text.startsWith("Your translation")) return alert("Translate something first.");
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-IN"; // Browser TTS fallback; replace with validated target-language TTS for production.
+  speechSynthesis.cancel(); speechSynthesis.speak(u);
+}
+
+function startVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return alert("Use Chrome for the voice demo.");
+  const r = new SR();
+  r.lang = "hi-IN"; r.interimResults = false; r.continuous = false;
+  document.getElementById("voiceStatus").textContent = "🎙 Listening...";
+  r.onresult = e => {
+    const text = e.results[0][0].transcript;
+    document.getElementById("hindi").value = text;
+    document.getElementById("voiceStatus").textContent = "Recognized: " + text;
+    translateNow();
+  };
+  r.onerror = () => document.getElementById("voiceStatus").textContent = "Voice recognition failed. Try again.";
+  r.start();
+}
+
+async function makeWorksheet() {
+  const topic = document.getElementById("topic").value;
+  const grade = document.getElementById("grade").value;
+  const r = await fetch("/api/worksheet", {
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({topic, grade, language:selectedLanguage})
+  });
+  const d = await r.json();
+  document.getElementById("worksheet").innerHTML =
+    "<b>"+d.title+"</b><ol>"+d.items.map(x=>"<li>"+x.replace(/^\d+\.\s*/,"")+"</li>").join("")+"</ol>";
+}
+
+function downloadWorksheet() {
+  const topic = encodeURIComponent(document.getElementById("topic").value);
+  const grade = encodeURIComponent(document.getElementById("grade").value);
+  const lang = encodeURIComponent(selectedLanguage);
+  location.href = `/download/worksheet?topic=${topic}&grade=${grade}&language=${lang}`;
+}
+</script>
+</body>
+</html>
